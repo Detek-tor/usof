@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Post</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="loadPost()">
+    <h1>Edit Post</h1>
+    <form id="editPostForm">
+        <label for="title">Title:</label>
+        <input type="text" id="title" name="title" required><br>
+        <label for="content">Content:</label>
+        <textarea id="content" name="content" required></textarea><br>
+        <button type="submit">Save Changes</button>
+        <button type="button" id="deleteButton">Delete Post</button>
+    </form>
+    <script>
+        async function loadPost() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const postId = urlParams.get('postId');
+                const token = localStorage.getItem('token');
+
+                if (!token) {
+                    alert('Вы не авторизованы');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const response = await fetch(`/api/posts/${postId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Не удалось загрузить пост');
+                }
+
+                const post = await response.json();
+                document.getElementById('title').value = post.title;
+                document.getElementById('content').value = post.content;
+            } catch (error) {
+                console.error('Ошибка при загрузке поста:', error);
+                alert('Ошибка при загрузке поста');
+                window.location.href = '/posts.html';
+            }
+}
+
+        document.getElementById('editPostForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('postId');
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const token = localStorage.getItem('token');
+
+            const response = await fetch(`/api/posts/${postId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ title, content })
+            });
+
+            if (response.status === 401) {
+                alert('Unauthorized. Please log in.');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const data = await response.json();
+            alert(data.message || 'Post updated successfully');
+            window.location.href = '/posts.html';
+        });
+
+        document.getElementById('deleteButton').addEventListener('click', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('postId');
+            const token = localStorage.getItem('token');
+
+            const response = await fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                alert('Unauthorized. Please log in.');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            alert('Post deleted successfully');
+            window.location.href = '/posts.html';
+        });
+    </script>
+</body>
+</html>

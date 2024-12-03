@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация Пользователя (Админ)</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="checkAuth()">
+    <h1>Регистрация Пользователя (Админ)</h1>
+    <form id="adminRegisterForm" enctype="multipart/form-data">
+        <label for="username">Имя пользователя:</label>
+        <input type="text" id="username" name="username" required><br>
+
+        <label for="full_name">Полное имя:</label>
+        <input type="text" id="full_name" name="full_name" required><br>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required><br>
+
+        <label for="password">Пароль:</label>
+        <input type="password" id="password" name="password" required><br>
+
+        <label for="role">Роль:</label>
+        <select id="role" name="role" required>
+            <option value="user">Пользователь</option>
+            <option value="admin">Администратор</option>
+        </select><br>
+
+        <label for="avatar">Аватар:</label>
+        <input type="file" id="avatar" name="avatar" accept="image/*"><br>
+
+        <button type="submit">Зарегистрировать</button>
+    </form>
+    <script>
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.role !== 'admin') {
+                alert('У вас нет доступа к этой странице.');
+                window.location.href = '/';
+            }
+        }
+
+        document.getElementById('adminRegisterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(document.getElementById('adminRegisterForm'));
+            const token = localStorage.getItem('token');
+
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Пользователь успешно создан');
+                    window.location.href = '/';
+                } else {
+                    alert(data.message || 'Ошибка при создании пользователя');
+                }
+            } catch (error) {
+                console.error('Ошибка при создании пользователя:', error);
+                alert('Произошла ошибка при создании пользователя. Пожалуйста, попробуйте позже.');
+            }
+        });
+    </script>
+</body>
+</html>

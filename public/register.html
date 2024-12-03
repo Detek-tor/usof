@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Регистрация</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Регистрация</h1>
+    <form id="registerForm">
+        <label for="username">Имя пользователя:</label>
+        <input type="text" id="username" name="username" required><br><br>
+
+        <label for="full_name">Полное имя:</label>
+        <input type="text" id="full_name" name="full_name" required><br><br>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required><br><br>
+
+        <label for="password">Пароль:</label>
+        <input type="password" id="password" name="password" required><br><br>
+
+        <button type="submit">Зарегистрироваться</button>
+    </form>
+    <p>Уже есть аккаунт? <a href="/login.html">Войти</a></p>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const full_name = document.getElementById('full_name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, full_name, email, password})
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    window.location.href = '/login.html';
+                    alert('Подтвердите e-mail для завершения регистрации')
+                } else {
+                    alert(data.message || 'Ошибка при регистрации');
+                }
+            } catch (error) {
+                console.error('Ошибка при отправке формы регистрации:', error);
+                alert('Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.');
+            }
+        });
+    </script>
+</body>
+</html>

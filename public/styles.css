@@ -1,0 +1,154 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background-color: #f0f0f0;
+}
+
+h1 {
+    color: #333;
+    margin-top: 20px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    width: 300px;
+    padding: 20px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+#userAvatar {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+}
+
+.avatar-small {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+}
+
+label {
+    margin-bottom: 5px;
+    color: #555;
+}
+
+input, textarea {
+    margin-bottom: 10px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+button {
+    padding: 10px;
+    background-color: #007BFF;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#deleteButton {
+    background-color: #dc3545;
+    margin-top: 10px;
+}
+
+#deleteButton:hover {
+    background-color: #c82333;
+}
+
+nav {
+    margin-bottom: 20px;
+}
+
+nav a {
+    margin: 0 10px;
+    text-decoration: none;
+    color: #007BFF;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+#logoutButton {
+    background-color: #dc3545;
+}
+
+#logoutButton:hover {
+    background-color: #c82333;
+}
+
+#postsContainer {
+    width: 80%;
+    max-width: 800px;
+    margin: 20px 0;
+}
+
+.post {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.comment {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.comment button {
+    background-color: #dc3545;
+    margin-top: 10px;
+}
+
+.comment button:hover {
+    background-color: #c82333;
+}
+
+.likes {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+button.active {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.inactive-notification {
+    background-color: #ffdddd;
+    color: #a94442;
+    border: 1px solid #a94442;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+}

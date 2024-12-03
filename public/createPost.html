@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Post</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="initialize()">
+    <h1>Create Post</h1>
+    <form id="createPostForm">
+        <label for="title">Title:</label>
+        <input type="text" id="title" name="title" required><br>
+        <label for="content">Content:</label>
+        <textarea id="content" name="content" required></textarea><br>
+        <label for="categories">Categories:</label>
+        <select id="categories" name="categories" multiple required></select><br>
+        <button type="submit">Create Post</button>
+    </form>
+    <script>
+        async function initialize() {
+            checkAuth();
+            await loadCategories();
+        }
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('You need to be logged in to access this page.');
+                window.location.href = '/login.html';
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                if (!response.ok) {
+                    throw new Error('Failed to load categories');
+                }
+                const categories = await response.json();
+                const categoriesSelect = document.getElementById('categories');
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    categoriesSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        document.getElementById('createPostForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const categoriesSelect = document.getElementById('categories');
+            const categoryIds = Array.from(categoriesSelect.selectedOptions).map(option => option.value);
+            const token = localStorage.getItem('token');
+
+            const response = await fetch('/api/posts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ title, content, categoryIds })
+            });
+
+            if (response.status === 401) {
+                alert('Unauthorized. Please log in.');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const data = await response.json();
+            alert(data.message || 'Post created successfully');
+        });
+    </script>
+</body>
+</html>

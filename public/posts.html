@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Posts</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="initialize()">
+    <h1>Посты</h1>
+    <div id="adminActions" style="display: none;">
+        <button onclick="window.location.href='/createCategory.html'">Создать категорию</button>
+        <button onclick="window.location.href='/admin-register.html'">Зарегистрировать пользователя</button>
+    </div>
+    <div id="adminActions" style="display: none;">
+        <button onclick="window.location.href='/createCategory.html'">Создать категорию</button>
+        <button onclick="window.location.href='/register.html'">Зарегистрировать пользователя</button>
+    </div>
+    <div id="categoryFilter"></div>
+    <div id="postsContainer"></div>
+    <script>
+        async function initialize() {
+            checkAuth();
+            await loadPosts();
+            await loadCategories();
+        }
+
+        function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.role === 'admin') {
+                    document.getElementById('adminActions').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Ошибка при декодировании токена:', error);
+                window.location.href = '/login.html';
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить категории');
+                }
+                const categories = await response.json();
+                console.log('Загруженные категории:', categories);
+                renderCategoryFilter(categories);
+            } catch (error) {
+                console.error('Ошибка при загрузке категорий:', error);
+            }
+        }
+
+        function renderCategoryFilter(categories) {
+            const categoryFilter = document.getElementById('categoryFilter');
+            categories.forEach(category => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = category.id;
+                checkbox.addEventListener('change', filterPostsByCategory);
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(` ${escapeHtml(category.name)}`));
+                categoryFilter.appendChild(label);
+                categoryFilter.appendChild(document.createElement('br'));
+            });
+        }
+
+        function filterPostsByCategory() {
+            const categoryFilter = document.getElementById('categoryFilter');
+            const checkboxes = categoryFilter.querySelectorAll('input[type="checkbox"]');
+            const selectedCategories = Array.from(checkboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
+
+            console.log('Выбранные категории:', selectedCategories);
+
+            const posts = document.querySelectorAll('.post');
+
+            posts.forEach(post => {
+                const postCategoryIds = post.dataset.categoryIds ? post.dataset.categoryIds.split(',') : [];
+                
+                console.log('Категории поста:', postCategoryIds);
+
+                const matches = selectedCategories.every(catId => postCategoryIds.includes(catId));
+
+                if (selectedCategories.length === 0 || matches) {
+                    post.style.display = 'block';
+                } else {
+                    post.style.display = 'none';
+                }
+            });
+        }
+
+        async function loadPosts() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Не авторизован');
+                }
+                const response = await fetch('/api/posts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить посты');
+                }
+
+                const posts = await response.json();
+                console.log('Полученные посты', posts);
+                const postsContainer = document.getElementById('postsContainer');
+                postsContainer.innerHTML = '';
+
+                const user = getCurrentUser();
+                const isAdmin = user && user.role === 'admin';
+
+                posts.forEach(post => {
+                    const postElement = document.createElement('div');
+                    postElement.className = 'post';
+                    postElement.dataset.categoryIds = post.categories.map(cat => String(cat.id)).join(',');
+
+                    const inactiveNotification = post.status === 'not_active' ? `
+                        <div class="inactive-notification">Этот пост неактивен</div>
+                    ` : '';
+                    postElement.innerHTML = `
+                        <h2>${escapeHtml(post.title)}</h2>
+                        <p>${escapeHtml(post.content)}</p>
+                        <p><strong>Категории:</strong> ${post.categories.map(category => escapeHtml(category.name)).join(', ')}</p>
+                        <p><strong>Пользователь:</strong> ${post.username}</p>
+                        <p><strong>Время создания:</strong> ${new Date(post.publish_date).toLocaleString()}</p>
+                        ${inactiveNotification}
+                        ${isAuthor(post.user_id) || isAdmin ? `<button onclick="editPost(${post.id})">Редактировать</button>` : ''}
+                        ${isAuthor(post.user_id) || isAdmin ? `<button onclick="deletePost(${post.id})">Удалить</button>` : ''}
+                        <div class="likes" id="likes-${post.id}">Лайков: ${post.likes_count || 0}, Дизлайков: ${post.dislikes_count || 0}</div>
+                        ${canChangeStatus(post, user) ? `
+                            <select onchange="changePostStatus(${post.id}, this.value)">
+                                <option value="active" ${post.status === 'active' ? 'selected' : ''}>Активен</option>
+                                <option value="not_active" ${post.status === 'not_active' ? 'selected' : ''}>Неактивен</option>
+                            </select>
+                        ` : ''}
+                        <hr>
+                        <button id="like-button-${post.id}" onclick="toggleLike(${post.id}, 'like')">Лайк</button>
+                        <button id="dislike-button-${post.id}" onclick="toggleLike(${post.id}, 'dislike')">Дизлайк</button>
+                        <div class="comments" id="comments-${post.id}"></div>
+                        <form onsubmit="addComment(event, ${post.id})">
+                            <textarea name="comment" placeholder="Добавить комментарий" required></textarea>
+                            <button type="submit">Комментировать</button>
+                        </form>
+                    `;
+                    postsContainer.appendChild(postElement);
+                    loadLikes(post.id);
+                    loadComments(post.id);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+    function isAuthor(postUserId) {
+        const token = localStorage.getItem('token');
+        if (!token) return false;
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.id === postUserId;
+        } catch (error) {
+            console.error('Ошибка при декодировании токена:', error);
+            return false;
+        }
+    }
+
+        function editPost(postId) {
+            window.location.href = `/editPosts.html?postId=${postId}`;
+        }
+
+        async function loadLikes(postId) {
+            try {
+                const response = await fetch(`/api/likes/count?postId=${postId}`);
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить лайки');
+                }
+                const likes = await response.json();
+                const likesElement = document.getElementById(`likes-${postId}`);
+                const likesCount = likes.find(like => like.type === 'like')?.count || 0;
+                const dislikesCount = likes.find(like => like.type === 'dislike')?.count || 0;
+                likesElement.textContent = `Лайков: ${likesCount}, Дизлайков: ${dislikesCount}`;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function canChangeStatus(post, user) {
+            return user.role === 'admin' || post.user_id === user.id;
+        }
+
+        async function changePostStatus(postId, newStatus) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Не авторизован');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/posts/${postId}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Не удалось обновить статус поста');
+                }
+
+                const updatedPost = await response.json();
+                alert('Статус поста обновлён');
+                loadPosts();
+            } catch (error) {
+                console.error(error);
+                alert(error.message);
+            }
+        }
+
+        async function toggleLike(postId, type) {
+            const token = localStorage.getItem('token');
+            const likeButton = document.getElementById(`like-button-${postId}`);
+            const dislikeButton = document.getElementById(`dislike-button-${postId}`);
+
+            try {
+                const userLikeResponse = await fetch(`/api/likes/${postId}/user`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const userLike = userLikeResponse.ok ? await userLikeResponse.json() : null;
+
+                if (userLike && userLike.type === type) {
+                    const response = await fetch('/api/likes', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ postId })
+                    });
+
+                    if (response.status === 401) {
+                        alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось удалить лайк/дизлайк');
+                    }
+
+                    likeButton.classList.remove('active');
+                    dislikeButton.classList.remove('active');
+                } else {
+                    const response = await fetch('/api/likes', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ postId, type })
+                    });
+
+                    if (response.status === 401) {
+                        alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось добавить лайк/дизлайк');
+                    }
+
+                    likeButton.classList.toggle('active', type === 'like');
+                    dislikeButton.classList.toggle('active', type === 'dislike');
+                }
+
+                loadLikes(postId);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function getCurrentUser() {
+        const token = localStorage.getItem('token');
+        if (!token) return null;
+
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return {
+                id: payload.id,
+                role: payload.role
+            };
+        } catch (error) {
+            console.error('Ошибка при декодировании токена:', error);
+            return null;
+        }
+    }
+
+        async function loadComments(postId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/comments/post/${postId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить комментарии');
+                }
+
+                const comments = await response.json();
+                const commentsContainer = document.getElementById(`comments-${postId}`);
+                commentsContainer.innerHTML = '';
+
+                const currentUser = getCurrentUser();
+                const isAdmin = currentUser && currentUser.role === 'admin';
+                const currentUserId = currentUser ? currentUser.id : null;
+
+                comments.forEach(comment => {
+                    const commentElement = document.createElement('div');
+                    commentElement.className = 'comment';
+
+                    const publishDate = new Date(comment.publish_date).toLocaleString('ru-RU', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    commentElement.innerHTML = `
+                        <div class="comment-header">
+                            <span><strong>${escapeHtml(comment.username)}</strong></span>
+                            <span>${publishDate}</span>
+                        </div>
+                        <p>${escapeHtml(comment.content)}</p>
+                        <div class="likes" id="comment-likes-${comment.id}">Лайков: ${comment.likes_count || 0}, Дизлайков: ${comment.dislikes_count || 0}</div>
+                        <button id="comment-like-button-${comment.id}" onclick="toggleCommentLike(${postId}, ${comment.id}, 'like')">Лайк</button>
+                        <button id="comment-dislike-button-${comment.id}" onclick="toggleCommentLike(${postId}, ${comment.id}, 'dislike')">Дизлайк</button>
+                        ${ (isAdmin || comment.user_id === currentUserId) ? `<button onclick="deleteComment(${comment.id}, ${postId})">Удалить</button>` : ''}
+                    `;
+                    commentsContainer.appendChild(commentElement);
+                    loadCommentLikes(postId, comment.id);
+                });
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось загрузить комментарии');
+            }
+        }
+
+        async function loadCommentLikes(postId, commentId) {
+            try {
+                const response = await fetch(`/api/likes/count?postId=${postId}&commentId=${commentId}`);
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить лайки комментария');
+                }
+                const likes = await response.json();
+                const likesElement = document.getElementById(`comment-likes-${commentId}`);
+                const likesCount = likes.find(like => like.type === 'like')?.count || 0;
+                const dislikesCount = likes.find(like => like.type === 'dislike')?.count || 0;
+                likesElement.textContent = `Лайков: ${likesCount}, Дизлайков: ${dislikesCount}`;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function toggleCommentLike(postId, commentId, type) {
+            const token = localStorage.getItem('token');
+            const likeButton = document.getElementById(`comment-like-button-${commentId}`);
+            const dislikeButton = document.getElementById(`comment-dislike-button-${commentId}`);
+
+            try {
+                const userLikeResponse = await fetch(`/api/likes/${postId}/${commentId}/user`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const userLike = userLikeResponse.ok ? await userLikeResponse.json() : null;
+
+                if (userLike && userLike.type === type) {
+                    const response = await fetch('/api/likes', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ postId, commentId })
+                    });
+
+                    if (response.status === 401) {
+                        alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось удалить лайк/дизлайк');
+                    }
+
+                    likeButton.classList.remove('active');
+                    dislikeButton.classList.remove('active');
+                } else {
+                    const response = await fetch('/api/likes', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ postId, commentId, type })
+                    });
+
+                    if (response.status === 401) {
+                        alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось добавить лайк/дизлайк');
+                    }
+
+                    likeButton.classList.toggle('active', type === 'like');
+                    dislikeButton.classList.toggle('active', type === 'dislike');
+                }
+
+                loadCommentLikes(postId, commentId);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function addComment(event, postId) {
+            event.preventDefault();
+            const form = event.target;
+            const content = form.comment.value;
+            const token = localStorage.getItem('token');
+
+            try {
+                const response = await fetch(`/api/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ content, postId })
+                });
+
+                if (response.status === 401) {
+                    alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Не удалось добавить комментарий');
+                }
+
+                const newComment = await response.json();
+                const commentsContainer = document.getElementById(`comments-${postId}`);
+                const commentElement = document.createElement('div');
+                commentElement.className = 'comment';
+                commentElement.innerHTML = `
+                    <p>${newComment.content}</p>
+                    <p><strong>ID автора:</strong> ${newComment.user_id}</p>
+                    <div class="likes" id="comment-likes-${newComment.id}">Лайков: 0, Дизлайков: 0</div>
+                    <button id="comment-like-button-${newComment.id}" onclick="toggleCommentLike(${postId}, ${newComment.id}, 'like')">Лайк</button>
+                    <button id="comment-dislike-button-${newComment.id}" onclick="toggleCommentLike(${postId}, ${newComment.id}, 'dislike')">Дизлайк</button>
+                    ${isAuthor(newComment.user_id) ? `<button onclick="deleteComment(${newComment.id}, ${postId})">Удалить</button>` : ''}
+                `;
+                commentsContainer.appendChild(commentElement);
+
+                form.reset();
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function deleteComment(commentId, postId) {
+            const token = localStorage.getItem('token');
+
+            if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) return;
+            try {
+                const response = await fetch(`/api/comments/${commentId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+                if (response.status === 401) {
+                    alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (response.status === 403) {
+                alert('У вас нет прав для удаления этого комментария.');
+                return;
+            }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Не удалось удалить комментарий');
+                }
+
+                const data = await response.json();
+                alert(data.message || 'Комментарий удалён успешно');
+
+                loadComments(postId);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function deletePost(postId) {
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                alert('Неавторизованный доступ. Пожалуйста, войдите.');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message);
+            }
+
+            alert('Пост успешно удалён');
+            loadPosts();
+        } catch (error) {
+            console.error('Ошибка при удалении поста:', error);
+            alert('Ошибка при удалении поста');
+        }
+
+        function applyFilters() {
+            const selectedCategories = Array.from(document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked'))
+                .map(checkbox => checkbox.value);
+            loadPosts(selectedCategories);
+        }
+    }
+    </script>
+</body>
+</html>

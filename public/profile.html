@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль пользователя</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <nav>
+        <a href="/posts.html">Посты</a>
+        <a href="/profile.html">Профиль</a>
+        <button id="logoutButton">Выйти</button>
+    </nav>
+
+    <div class="profile-container">
+        <img id="profileAvatar" src="" alt="Аватар пользователя" class="avatar">
+        <div class="profile-details">
+            <p><strong>Логин:</strong> <span id="profileUsername"></span></p>
+            <p><strong>Полное имя:</strong> <span id="profileFullName"></span></p>
+            <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+            <p><strong>Роль:</strong> <span id="profileRole"></span></p>
+        </div>
+        <form id="avatarForm" enctype="multipart/form-data">
+            <label for="avatar">Загрузить новый аватар:</label>
+            <input type="file" id="avatar" name="avatar" accept="image/*" required>
+            <button type="submit">Сменить аватар</button>
+        </form>
+
+        <h2>Редактировать профиль</h2>
+        <form id="editProfileForm">
+            <label for="username">Логин:</label>
+            <input type="text" id="username" name="username" required><br>
+            <label for="full_name">Полное имя:</label>
+            <input type="text" id="full_name" name="full_name" required><br>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required><br>
+            <button type="submit">Сохранить изменения</button>
+        </form>
+
+        <h2>Восстановить пароль</h2>
+        <form id="restorePasswordForm">
+            <label for="restoreEmail">Ваш Email:</label>
+            <input type="email" id="restoreEmail" name="restoreEmail" required><br>
+            <button type="submit">Отправить ссылку для сброса пароля</button>
+        </form>
+    </div>
+
+    <script>
+        async function loadUserProfile() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const user = await response.json();
+                if (response.ok) {
+                    document.getElementById('profileAvatar').src = `/${user.avatar.replace(/\\/g, '/')}`;
+                    document.getElementById('profileUsername').textContent = user.username;
+                    document.getElementById('profileFullName').textContent = user.full_name;
+                    document.getElementById('profileEmail').textContent = user.email;
+                    document.getElementById('profileRole').textContent = user.role;
+
+                    document.getElementById('username').value = user.username;
+                    document.getElementById('full_name').value = user.full_name;
+                    document.getElementById('email').value = user.email;
+                } else {
+                    console.error('Ошибка при получении информации о пользователе:', user.message);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении информации о пользователе:', error);
+            }
+        }
+
+        document.getElementById('avatarForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const avatarFile = document.getElementById('avatar').files[0];
+            formData.append('avatar', avatarFile);
+
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/users/avatar', {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Аватар успешно обновлен');
+                    loadUserProfile();
+                } else {
+                    alert(data.message || 'Ошибка при обновлении аватара');
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении аватара:', error);
+                alert('Ошибка при обновлении аватара');
+            }
+        });
+
+        document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const full_name = document.getElementById('full_name').value;
+            const email = document.getElementById('email').value;
+
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/users/profile', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ username, full_name, email })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Профиль успешно обновлен');
+                    loadUserProfile();
+                } else {
+                    alert(data.message || 'Ошибка при обновлении профиля');
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении профиля:', error);
+                alert('Ошибка при обновлении профиля');
+            }
+        });
+
+        document.getElementById('restorePasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('restoreEmail').value;
+
+            try {
+                const response = await fetch('/api/users/request-password-change', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Ссылка для сброса пароля отправлена на ваш email');
+                } else {
+                    alert(data.message || 'Ошибка при запросе на смену пароля');
+                }
+            } catch (error) {
+                console.error('Ошибка при запросе на смену пароля:', error);
+                alert('Ошибка при запросе на смену пароля');
+            }
+        });
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        });
+
+        window.onload = loadUserProfile;
+    </script>
+</body>
+</html>

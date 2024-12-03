@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список пользователей</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="loadUsers()">
+    <div class="header">
+        <h1>Список пользователей</h1>
+    </div>
+    <div class="users-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Имя пользователя</th>
+                    <th>Полное имя</th>
+                    <th>Email</th>
+                    <th>Роль</th>
+                    <th>Аватар</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+            </tbody>
+        </table>
+    </div>
+    <script>
+        async function loadUsers() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const users = await response.json();
+                if (response.ok) {
+                    const usersTableBody = document.getElementById('usersTableBody');
+                    usersTableBody.innerHTML = '';
+                    users.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.id}</td>
+                            <td>${user.username}</td>
+                            <td>${user.full_name}</td>
+                            <td>${user.email}</td>
+                            <td>${user.role}</td>
+                            <td><img src="/${user.avatar.replace(/\\/g, '/')}" alt="Аватар" class="avatar-small"></td>
+                            <td>
+                                <button onclick="editUser(${user.id})">Изменить данные</button>
+                                <button onclick="deleteUser(${user.id})">Удалить</button>
+                            </td>
+                        `;
+                        usersTableBody.appendChild(row);
+                    });
+                } else {
+                    console.error('Ошибка при получении списка пользователей:', users.message);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении списка пользователей:', error);
+            }
+        }
+
+        function editUser(userId) {
+            window.location.href = `edit-user.html?userId=${userId}`;
+        }
+
+        async function deleteUser(userId) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Пользователь успешно удален');
+                    loadUsers();
+                } else {
+                    console.error('Ошибка при удалении пользователя:', result.message);
+                    alert(`Ошибка при удалении пользователя: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при удалении пользователя:', error);
+                alert('Ошибка при удалении пользователя');
+            }
+        }
+
+    </script>
+</body>
+</html>

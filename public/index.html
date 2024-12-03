@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Главная</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="checkAuth()">
+    <div class="header">
+        <h1>Добро пожаловать в Q&A Сервис</h1>
+        <div id="userAvatar" style="display: none;">
+            <img id="avatarImage" src="" alt="Аватар пользователя" class="avatar" onclick="redirectToProfile()">
+        </div>
+    </div>
+    <nav>
+        <a href="/register.html" id="userRegisterLink">Регистрация</a>
+        <a href="/createPost.html">Создать Пост</a>
+        <a href="/posts.html">Посты</a>
+        <a href="/users.html" id="usersLink" style="display: none;">Пользователи</a>
+        <button id="logoutButton" style="display: none;">Выход</button>
+        <div id="adminActions" style="display: none;">
+            <a href="/admin-register.html">Регистрация Пользователя</a>
+            <a href="/createCategory.html">Создать Категорию</a>
+        </div>
+    </nav>
+    <script>
+        async function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.role === 'admin') {
+                document.getElementById('adminActions').style.display = 'block';
+                document.getElementById('usersLink').style.display = 'inline';
+            }
+            document.getElementById('logoutButton').style.display = 'inline';
+            document.getElementById('userRegisterLink').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const user = await response.json();
+                if (response.ok) {
+                    const avatarUrl = user.avatar.replace(/\\/g, '/');
+                    document.getElementById('avatarImage').src = `/${avatarUrl}`;
+                    document.getElementById('userAvatar').style.display = 'block';
+                    console.log('Путь к аватару:', avatarUrl);
+                } else {
+                    console.error('Ошибка при получении информации о пользователе:', user.message);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении информации о пользователе:', error);
+            }
+        }
+
+        function redirectToProfile() {
+            window.location.href = '/profile.html';
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        });
+    </script>
+</body>
+</html>

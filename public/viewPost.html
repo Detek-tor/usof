@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Просмотр Поста</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="initialize()">
+    <div class="header">
+        <h1>Просмотр Поста</h1>
+        <button id="logoutButton">Выход</button>
+    </div>
+
+    <div class="post-container">
+        <h2 id="postTitle"></h2>
+        <p id="postContent"></p>
+        <p><strong>Автор:</strong> <span id="postAuthor"></span></p>
+        <p><strong>Категории:</strong> <span id="postCategories"></span></p>
+        <button id="editPostButton" style="display: none;">Редактировать Пост</button>
+        <button id="deletePostButton" style="display: none;" onclick="deletePost()">Удалить Пост</button>
+    </div>
+
+    <hr>
+
+    <div class="comments-section">
+        <h3>Комментарии</h3>
+        <div id="commentsContainer"></div>
+    </div>
+
+    <script>
+        async function initialize() {
+            checkAuth();
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('postId');
+            if (postId) {
+                await loadPost(postId);
+                await loadComments(postId);
+            } else {
+                alert('Пост не указан');
+                window.location.href = '/posts.html';
+            }
+        }
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.role === 'admin' || payload.id === getPostAuthorId()) {
+                    document.getElementById('editPostButton').style.display = 'inline';
+                    document.getElementById('deletePostButton').style.display = 'inline';
+                }
+                document.getElementById('logoutButton').style.display = 'inline';
+            }
+        }
+
+        async function loadPost(postId) {
+            try {
+                const response = await fetch(`/api/posts/${postId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const post = await response.json();
+                if (response.ok) {
+                    document.getElementById('postTitle').textContent = post.title;
+                    document.getElementById('postContent').textContent = post.content;
+                    document.getElementById('postAuthor').textContent = post.username;
+                    document.getElementById('postCategories').textContent = post.categories.map(cat => cat.name).join(', ');
+                } else {
+                    alert(`Ошибка при загрузке поста: ${post.message}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке поста:', error);
+            }
+        }
+
+        function getPostAuthorId() {
+            return null;
+        }
+
+        async function deletePost() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('postId');
+            if (!postId) return;
+
+            if (!confirm('Вы уверены, что хотите удалить этот пост?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Пост успешно удалён');
+                    window.location.href = '/posts.html';
+                } else {
+                    alert(`Ошибка при удалении поста: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при удалении поста:', error);
+                alert('Произошла ошибка при удалении поста');
+            }
+        }
+
+        async function loadComments(postId) {
+            try {
+                const response = await fetch(`/api/comments/post/${postId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const comments = await response.json();
+                const commentsContainer = document.getElementById('commentsContainer');
+                commentsContainer.innerHTML = '';
+
+                comments.forEach(comment => {
+                    const commentDiv = document.createElement('div');
+                    commentDiv.className = 'comment';
+
+                    commentDiv.innerHTML = `
+                        <p>${comment.content}</p>
+                        <p><strong>Автор:</strong> ${comment.username}</p>
+                        ${isAdmin() ? `<button onclick="deleteComment(${comment.id})">Удалить</button>` : ''}
+                        <hr>
+                    `;
+
+                    commentsContainer.appendChild(commentDiv);
+                });
+            } catch (error) {
+                console.error('Ошибка при загрузке комментариев:', error);
+            }
+        }
+
+        function isAdmin() {
+            const token = localStorage.getItem('token');
+            if (!token) return false;
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.role === 'admin';
+        }
+
+        async function deleteComment(commentId) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('postId');
+            if (!postId) return;
+
+            if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/comments/${commentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Комментарий успешно удалён');
+                    loadComments(postId);
+                } else {
+                    alert(`Ошибка при удалении комментария: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при удалении комментария:', error);
+                alert('Произошла ошибка при удалении комментария');
+            }
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        });
+    </script>
+</body>
+</html>
